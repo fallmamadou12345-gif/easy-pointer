@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: easy-pointer
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm run render:build
+    startCommand: npm run render:start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /opt/render/project/data/easy_pointer.db
+    disk:
+      name: easy-pointer-data
+      mountPath: /opt/render/project/data
+      sizeGB: 1
