@@ -425,7 +425,7 @@ function Zones({toast}) {
           </div>
           <FormField label={`Rayon GPS : ${form.rayon||150}m`}>
             <input type="range" min="50" max="1000" step="25" value={form.rayon||150} onChange={e=>setForm(p=>({...p,rayon:parseInt(e.target.value)}))} style={{width:'100%',accentColor:C.acc,marginBottom:8}}/>
-            <div style={{display:'flex',gap:8'}}>
+            <div style={{display:'flex',gap:8}}>
               {[75,150,300,500].map(v=><button key={v} onClick={()=>setForm(p=>({...p,rayon:v}))} style={{flex:1,padding:'6px',background:form.rayon===v?C.pr:'#f8fafc',color:form.rayon===v?'#fff':C.sub,border:`1px solid ${form.rayon===v?C.pr:C.bd}`,borderRadius:8,fontSize:10,fontWeight:700,cursor:'pointer'}}>{v}m</button>)}
             </div>
           </FormField>
