@@ -3,8 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 
-router.use(authMiddleware);
-
+// GET public — app agent peut lire son planning
 router.get('/', (req, res) => {
   const { date_debut, date_fin, agent_id } = req.query;
   let sql = 'SELECT * FROM planning WHERE 1=1';
@@ -15,7 +14,8 @@ router.get('/', (req, res) => {
   res.json(db.prepare(sql).all(...p));
 });
 
-router.post('/', (req, res) => {
+// POST/PUT protégés — admin seulement
+router.post('/', authMiddleware, (req, res) => {
   const { agent_id, date, shift_id, note } = req.body;
   if (!agent_id || !date) return res.status(400).json({ error: 'agent_id et date requis' });
   const now = new Date().toISOString();
@@ -30,7 +30,7 @@ router.post('/', (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/bulk', (req, res) => {
+router.post('/bulk', authMiddleware, (req, res) => {
   const { updates } = req.body;
   if (!Array.isArray(updates)) return res.status(400).json({ error: 'updates doit être un tableau' });
   const now = new Date().toISOString();
