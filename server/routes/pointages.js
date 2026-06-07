@@ -105,3 +105,12 @@ router.get('/alertes', authMiddleware, (req, res) => {
 });
 
 module.exports = router;
+
+// GET pointages d'un agent spécifique (public pour app agent)
+router.get('/agent/:agent_id', (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.*,z.nom as zone_nom FROM pointages p LEFT JOIN zones z ON p.zone_id=z.id
+    WHERE p.agent_id=? ORDER BY p.date DESC LIMIT 60
+  `).all(req.params.agent_id);
+  res.json(rows);
+});

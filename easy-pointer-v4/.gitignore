@@ -1,9 +1,0 @@
-node_modules/
-client/node_modules/
-data/
-*.db
-*.db-shm
-*.db-wal
-.env
-.DS_Store
-# NE PAS ignorer client/dist - il est pré-compilé et committé
