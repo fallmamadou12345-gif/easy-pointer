@@ -151,8 +151,6 @@ function createTables() {
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(agent_id, date)
     );
-  `);
-
     CREATE TABLE IF NOT EXISTS demandes_inscription (
       id TEXT PRIMARY KEY,
       nom TEXT NOT NULL,
@@ -170,8 +168,9 @@ function createTables() {
       traite_par TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+  `);
 
-    console.log('✅ Tables créées/vérifiées');
+  console.log('✅ Tables créées/vérifiées');
 }
 
 function seedData() {
