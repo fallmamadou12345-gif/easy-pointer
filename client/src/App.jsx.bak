@@ -140,164 +140,68 @@ function LoginScreen({onLogin}) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-
-// ─── DASHBOARD RH INTELLIGENT ─────────────────────────────────────────────────
 function Dashboard({user}) {
-  const [dash,setDash]   = useState(null);
-  const [loading,setLoading] = useState(true);
-  const today = nowStr();
+  const [data,setData]=useState(null);
+  const [rapport,setRapport]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const today=nowStr();
 
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{ load(); },[]);
 
   async function load() {
     setLoading(true);
     try {
-      const d = await api.dashboard();
-      setDash(d);
-    } catch(e) {} finally { setLoading(false); }
+      const [t,r] = await Promise.all([api.todayPointages(), api.rapport({period:'mensuel',mois:today.slice(0,7)})]);
+      setData(t); setRapport(r);
+    } catch(e){} finally{setLoading(false);}
   }
 
-  if (loading) return <Loader/>;
-  if (!dash)   return <div style={{color:C.sub,textAlign:'center',padding:40}}>Erreur chargement</div>;
-
-  const { today: t, mois, pointages } = dash;
-  const presents    = pointages.filter(p=>p.arrivee&&!p.depart);
-  const sortis      = pointages.filter(p=>p.depart);
-  const retardataires = pointages.filter(p=>p.retard_minutes>0);
+  if(loading) return <Loader/>;
+  const presents=data?.pointages?.filter(p=>p.arrivee&&!p.depart)||[];
+  const sortis=data?.pointages?.filter(p=>p.depart)||[];
+  const absents=data?.absents||[];
+  const moisTotalH=rapport.reduce((a,r)=>a+r.totalH,0);
+  const moisSupH=rapport.reduce((a,r)=>a+r.supH,0);
 
   return(
-    <div style={{display:'flex',flexDirection:'column',gap:18}}>
-
-      {/* KPIs temps réel */}
+    <div style={{display:'flex',flexDirection:'column',gap:20}}>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
         {[
-          {l:'Présents',  v:t.presents,  c:'#06844b', bg:'#ecfdf5', ic:'🟢'},
-          {l:'Sortis',    v:t.sortis,    c:'#2563eb', bg:'#eff6ff', ic:'✅'},
-          {l:'Absents',   v:t.absents,   c:'#dc2626', bg:'#fef2f2', ic:'❌'},
-          {l:'Retardataires',v:retardataires.length, c:'#d97706', bg:'#fffbeb', ic:'⏰'},
-        ].map(({l,v,c,bg,ic}) => (
-          <div key={l} style={{background:bg, borderRadius:16, padding:'18px 20px', border:`1px solid ${C.bd}`, boxShadow:'0 1px 6px rgba(0,0,0,0.05)'}}>
-            <div style={{fontSize:11,marginBottom:6}}>{ic}</div>
+          {l:'Présents',v:presents.length,c:C.ok,bg:'#ecfdf5'},
+          {l:'Sortis',v:sortis.length,c:'#2563eb',bg:'#eff6ff'},
+          {l:'Absents',v:absents.length,c:C.acc,bg:'#fff7ed'},
+          {l:'Heures mois',v:fmtH(moisTotalH),c:C.pr,bg:'#f0f4f8'},
+        ].map(({l,v,c,bg})=>(
+          <div key={l} style={{background:bg,borderRadius:16,padding:'18px 20px',border:`1px solid ${C.bd}`}}>
             <div style={{fontSize:30,fontWeight:900,color:c}}>{v}</div>
-            <div style={{fontSize:11,color:C.sub,marginTop:4}}>{l}</div>
+            <div style={{fontSize:12,color:C.sub,marginTop:4}}>{l}</div>
           </div>
         ))}
       </div>
 
-      {/* Retardataires du jour */}
-      {retardataires.length > 0 && (
-        <div style={{background:'#fffbeb',border:'1.5px solid #fde68a',borderRadius:16,padding:20}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,fontWeight:800,fontSize:14,color:'#92400e',marginBottom:14}}>
-            ⏰ Retardataires du jour — {retardataires.length} agent{retardataires.length>1?'s':''}
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {retardataires.map(p => (
-              <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,background:'#fff',borderRadius:11,padding:'10px 14px',border:'1px solid #fde68a'}}>
-                <Av ag={{id:p.agent_id,nom:p.nom,prenom:p.prenom,photo_base64:p.photo_base64}} size={32}/>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:13}}>{p.nom} {p.prenom}</div>
-                  <div style={{fontSize:11,color:C.sub}}>{p.poste}</div>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontWeight:800,fontSize:13,color:'#d97706'}}>+{p.retard_minutes}min</div>
-                  <div style={{fontSize:10,color:C.sub}}>Arrivée {p.arrivee?.slice(0,5)} · Attendu {p.heure_debut||'08:00'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stats mois */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13}}>
-        {[
-          {l:'Absences mois',    v:mois.absences||0,  c:C.acc, unit:'j'},
-          {l:'Retards accumulés',v:mois.nbRetards||0, c:'#d97706', unit:''},
-          {l:'Heures sup totales',v:fmtH(Math.round((mois.totalSup||0)/60)),c:C.ok,unit:''},
-        ].map(({l,v,c,unit}) => (
-          <div key={l} style={{background:C.card,borderRadius:13,padding:'16px 18px',border:`1px solid ${C.bd}`,boxShadow:'0 1px 5px rgba(0,0,0,0.05)'}}>
-            <div style={{fontSize:26,fontWeight:800,color:c}}>{v}{unit}</div>
-            <div style={{fontSize:11,color:C.sub,marginTop:3}}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Top retardataires du mois */}
-      {mois.topRetard?.length > 0 && (
-        <div style={{background:C.card,borderRadius:16,padding:20,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:14,color:C.tx}}>📊 Top retardataires du mois</div>
-          {mois.topRetard.map((r,i) => (
-            <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:`1px solid ${C.bd}`}}>
-              <div style={{width:24,height:24,borderRadius:'50%',background:i===0?'#fbbf24':i===1?'#94a3b8':'#cd7c54',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#fff',flexShrink:0}}>{i+1}</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:13}}>{r.nom} {r.prenom}</div>
-                <div style={{fontSize:10,color:C.sub}}>{r.poste}</div>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontWeight:700,fontSize:13,color:'#d97706'}}>{r.nbRetards}x retard</div>
-                <div style={{fontSize:10,color:C.sub}}>{fmtH(Math.round(r.totalMin/60*100)/100)} cumulé</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Activité du jour */}
       <div style={{background:C.card,borderRadius:16,padding:22,boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-        <div style={{fontWeight:700,fontSize:14,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-          <Ic.Clock/>Activité du jour · {today}
-          <button onClick={load} style={{marginLeft:'auto',background:'#f1f5f9',border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,fontWeight:600,cursor:'pointer',color:C.sub}}>↻ Actualiser</button>
-        </div>
-        {!pointages?.length && (
-          <div style={{color:C.sub,textAlign:'center',padding:20,fontSize:13}}>Aucun pointage aujourd'hui</div>
-        )}
-        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-          <thead>
-            <tr style={{background:'#f8fafc'}}>
-              {['Agent','Arrivée','Départ','Durée','Retard','Zone','Statut'].map(h=>(
-                <th key={h} style={{padding:'9px 12px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ic.Clock/>Activité du jour · {today}</div>
+        {(!data?.pointages?.length&&!absents.length)&&<div style={{color:C.sub,textAlign:'center',padding:20}}>Aucun pointage aujourd'hui</div>}
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead><tr style={{background:'#f8fafc'}}>{['Agent','Arrivée','Départ','Durée','Zone','Statut'].map(h=><th key={h} style={{padding:'10px 12px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>)}</tr></thead>
           <tbody>
-            {pointages.map(p => {
-              const dur = p.arrivee&&p.depart
-                ? Math.round((new Date(`2000-01-01T${p.depart}`)-new Date(`2000-01-01T${p.arrivee}`))/60000)
-                : null;
-              const retardBg = p.retard_minutes>0 ? {bg:'#fef3c7',c:'#92400e'} : null;
-              const badge = !p.depart ? ['#d1fae5','#065f46','En cours'] : ['#dbeafe','#1e40af','✓ Complet'];
-              return(
-                <tr key={p.id} style={{borderBottom:`1px solid ${C.bd}`, background:p.retard_minutes>0?'#fffbeb':'transparent'}}>
-                  <td style={{padding:'9px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <Av ag={{id:p.agent_id,nom:p.nom,prenom:p.prenom}} size={26}/>
-                    <span style={{fontWeight:600}}>{p.nom}</span>
-                  </div></td>
-                  <td style={{padding:'9px 12px',color:p.retard_minutes>0?'#d97706':C.sub,fontWeight:p.retard_minutes>0?700:400}}>
-                    {p.arrivee?.slice(0,5)||'—'}
-                  </td>
-                  <td style={{padding:'9px 12px',color:C.sub}}>{p.depart?.slice(0,5)||'—'}</td>
-                  <td style={{padding:'9px 12px',fontWeight:700,color:dur>=480?C.ok:C.wa}}>
-                    {dur ? `${Math.floor(dur/60)}h${String(dur%60).padStart(2,'0')}` : '—'}
-                  </td>
-                  <td style={{padding:'9px 12px'}}>
-                    {p.retard_minutes>0
-                      ? <span style={{background:'#fef3c7',color:'#92400e',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>+{p.retard_minutes}min</span>
-                      : <span style={{color:C.sub,fontSize:11}}>—</span>
-                    }
-                  </td>
-                  <td style={{padding:'9px 12px',fontSize:11,color:C.sub}}>{p.zone_nom||'—'}</td>
-                  <td style={{padding:'9px 12px'}}>
-                    <span style={{background:badge[0],color:badge[1],padding:'3px 9px',borderRadius:20,fontSize:10,fontWeight:700}}>{badge[2]}</span>
-                  </td>
-                </tr>
-              );
+            {data?.pointages?.map(p=>{
+              const dur=p.arrivee&&p.depart?((parseInt(p.depart)-parseInt(p.arrivee))/3600):null;
+              const badge=!p.depart?['#d1fae5','#065f46','En cours']:['#dbeafe','#1e40af','✓ Complet'];
+              return(<tr key={p.id} style={{borderBottom:`1px solid ${C.bd}`}}>
+                <td style={{padding:'10px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><Av ag={{id:p.agent_id,nom:p.nom,prenom:p.prenom}} size={26}/><span style={{fontWeight:600}}>{p.nom}</span></div></td>
+                <td style={{padding:'10px 12px',color:C.sub}}>{p.arrivee?.slice(0,5)||'—'}</td>
+                <td style={{padding:'10px 12px',color:C.sub}}>{p.depart?.slice(0,5)||'—'}</td>
+                <td style={{padding:'10px 12px',fontWeight:700,color:C.ok}}>{p.arrivee&&p.depart?`${Math.floor((new Date(`2000-01-01T${p.depart}`)-new Date(`2000-01-01T${p.arrivee}`))/3600000)}h${pad(Math.round(((new Date(`2000-01-01T${p.depart}`)-new Date(`2000-01-01T${p.arrivee}`))%3600000)/60000))}m`:'—'}</td>
+                <td style={{padding:'10px 12px',fontSize:11,color:C.sub}}>{p.zone_nom||'—'}</td>
+                <td style={{padding:'10px 12px'}}><span style={{background:badge[0],color:badge[1],padding:'3px 9px',borderRadius:20,fontSize:10,fontWeight:700}}>{badge[2]}</span></td>
+              </tr>);
             })}
-            {/* Absents */}
-            {Array.from({length:Math.max(0,t.absents)}).fill(null).slice(0,5).map((_,i) => (
-              <tr key={'ab'+i} style={{borderBottom:`1px solid ${C.bd}`,opacity:0.5}}>
-                <td colSpan={7} style={{padding:'8px 12px',color:'#dc2626',fontSize:11}}>
-                  — Agent absent (non pointé)
-                </td>
+            {absents.map(a=>(
+              <tr key={a.id} style={{borderBottom:`1px solid ${C.bd}`,opacity:0.6}}>
+                <td style={{padding:'10px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><Av ag={{id:a.id,nom:a.nom,prenom:a.prenom}} size={26}/><span style={{fontWeight:600}}>{a.nom}</span></div></td>
+                <td colSpan={4} style={{padding:'10px 12px',color:C.sub,fontSize:12}}>Pas encore pointé</td>
+                <td style={{padding:'10px 12px'}}><span style={{background:'#fee2e2',color:'#991b1b',padding:'3px 9px',borderRadius:20,fontSize:10,fontWeight:700}}>Absent</span></td>
               </tr>
             ))}
           </tbody>
@@ -307,671 +211,7 @@ function Dashboard({user}) {
   );
 }
 
-// ─── MODULE HORAIRES (GESTIONNAIRE) ──────────────────────────────────────────
-function Horaires({toast}) {
-  const [types, setTypes]   = useState([]);
-  const [agents, setAgents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal]   = useState(null); // null | 'new' | 'edit' | 'appliquer'
-  const [form, setForm]     = useState({});
-  const [selType, setSelType] = useState(null);
-  const [selAgents, setSelAgents] = useState([]);
-  const [activeTab, setActiveTab] = useState('modeles'); // modeles | agents
-
-  const JOURS_OPTS = [
-    {v:'1',l:'Lun'},{v:'2',l:'Mar'},{v:'3',l:'Mer'},{v:'4',l:'Jeu'},
-    {v:'5',l:'Ven'},{v:'6',l:'Sam'},{v:'0',l:'Dim'},
-  ];
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [t,a] = await Promise.all([api.horaires(), api.agents()]);
-      setTypes(t); setAgents(a);
-    } catch(e) {} finally { setLoading(false); }
-  }
-
-  async function saveType() {
-    try {
-      if (form.id) await api.updateHoraire(form.id, form);
-      else          await api.createHoraire(form);
-      toast(form.id ? 'Modèle mis à jour' : 'Modèle créé', 'ok');
-      setModal(null); load();
-    } catch(e) { toast(e.message,'err'); }
-  }
-
-  async function deleteType(id) {
-    if (!confirm('Supprimer ce modèle ?')) return;
-    try { await api.deleteHoraire(id); toast('Modèle supprimé','ok'); load(); }
-    catch(e) { toast(e.message,'err'); }
-  }
-
-  async function appliquerAuxAgents() {
-    if (!selAgents.length) { toast('Sélectionnez au moins un agent','warn'); return; }
-    try {
-      const r = await api.appliquerHoraire({ horaire_type_id: selType.id, agent_ids: selAgents });
-      toast(`Appliqué à ${r.count} agent(s)`, 'ok');
-      setModal(null); setSelAgents([]); load();
-    } catch(e) { toast(e.message,'err'); }
-  }
-
-  async function saveAgentHoraire(agent) {
-    try {
-      await api.horairePourAgent(agent.id, {
-        heure_debut: agent.heure_debut,
-        heure_fin:   agent.heure_fin,
-        tolerance_retard: agent.tolerance_retard,
-        jours_travail: agent.jours_travail,
-        horaire_type_id: agent.horaire_type_id || null,
-      });
-      toast('Horaire agent mis à jour','ok');
-      load();
-    } catch(e) { toast(e.message,'err'); }
-  }
-
-  const durée = (hd,hf) => {
-    if (!hd||!hf) return '—';
-    const [ah,am]=hd.split(':').map(Number),[bh,bm]=hf.split(':').map(Number);
-    const min=(bh*60+bm)-(ah*60+am);
-    return `${Math.floor(min/60)}h${String(min%60).padStart(2,'0')}`;
-  };
-
-  const COLS = ['#2563eb','#7c3aed','#e85d04','#d97706','#059669','#dc2626','#0369a1','#0f172a'];
-
-  return (
-    <div style={{display:'flex',flexDirection:'column',gap:18}}>
-      {/* Onglets */}
-      <div style={{display:'flex',gap:4,background:C.card,borderRadius:12,padding:4,width:'fit-content',boxShadow:'0 1px 5px rgba(0,0,0,0.07)'}}>
-        {[{id:'modeles',l:'Modèles horaires'},{id:'agents',l:'Horaires agents'}].map(({id,l}) => (
-          <button key={id} onClick={()=>setActiveTab(id)}
-            style={{padding:'8px 18px',borderRadius:9,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,
-              background:activeTab===id?C.pr:'transparent',color:activeTab===id?'#fff':C.sub}}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {/* ── MODÈLES ── */}
-      {activeTab==='modeles' && (
-        <>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div style={{fontWeight:800,fontSize:16,color:C.tx}}>
-              Modèles horaires · <span style={{color:C.sub,fontWeight:500,fontSize:13}}>{types.length} modèle{types.length>1?'s':''}</span>
-            </div>
-            <button onClick={()=>{setForm({heure_debut:'08:00',heure_fin:'16:00',tolerance_retard:15,jours_travail:'1,2,3,4,5',couleur:'#2563eb',actif:1});setModal('new');}}
-              style={{background:`linear-gradient(135deg,${C.pr},#2563eb)`,color:'#fff',border:'none',borderRadius:11,padding:'9px 18px',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
-              <Ic.Plus/>Nouveau modèle
-            </button>
-          </div>
-
-          {loading ? <Loader/> : (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
-              {types.map(t => (
-                <div key={t.id} style={{background:C.card,borderRadius:16,padding:18,boxShadow:'0 2px 10px rgba(0,0,0,0.07)',border:`2px solid ${t.couleur}25`,position:'relative',overflow:'hidden'}}>
-                  <div style={{position:'absolute',top:0,left:0,right:0,height:4,background:t.couleur}}/>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
-                    <div>
-                      <div style={{fontWeight:800,fontSize:15,color:C.tx}}>{t.nom}</div>
-                      <div style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,background:`${t.couleur}15`,border:`1px solid ${t.couleur}30`,borderRadius:20,padding:'2px 9px'}}>
-                        <div style={{width:6,height:6,borderRadius:'50%',background:t.couleur}}/>
-                        <span style={{fontSize:10,fontWeight:700,color:t.couleur}}>
-                          {t.nbAgents} agent{t.nbAgents>1?'s':''}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{display:'flex',gap:5}}>
-                      <button onClick={()=>{setSelType(t);setSelAgents([]);setModal('appliquer');}}
-                        style={{background:'#eff6ff',color:'#1d4ed8',border:'none',borderRadius:8,padding:'5px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>
-                        Appliquer
-                      </button>
-                      <button onClick={()=>{setForm({...t});setModal('edit');}}
-                        style={{background:'#f1f5f9',border:'none',borderRadius:8,padding:'5px 8px',cursor:'pointer',color:C.sub}}>
-                        <Ic.Edit/>
-                      </button>
-                      <button onClick={()=>deleteType(t.id)}
-                        style={{background:'#fef2f2',border:'none',borderRadius:8,padding:'5px 8px',cursor:'pointer',color:'#dc2626'}}>
-                        <Ic.Trash/>
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9}}>
-                    {[
-                      {l:'Heure début',v:t.heure_debut},
-                      {l:'Heure fin',v:t.heure_fin},
-                      {l:'Durée',v:durée(t.heure_debut,t.heure_fin)},
-                      {l:'Tolérance retard',v:`${t.tolerance_retard}min`},
-                    ].map(({l,v}) => (
-                      <div key={l} style={{background:'#f8fafc',borderRadius:9,padding:'8px 10px'}}>
-                        <div style={{fontSize:9,color:C.sub,textTransform:'uppercase',fontWeight:700,marginBottom:2}}>{l}</div>
-                        <div style={{fontWeight:700,fontSize:13,color:C.tx}}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{marginTop:10}}>
-                    <div style={{fontSize:9,color:C.sub,textTransform:'uppercase',fontWeight:700,marginBottom:5}}>Jours de travail</div>
-                    <div style={{display:'flex',gap:4}}>
-                      {JOURS_OPTS.map(({v,l}) => {
-                        const actif = (t.jours_travail||'1,2,3,4,5').split(',').includes(v);
-                        return (
-                          <div key={v} style={{width:26,height:26,borderRadius:6,background:actif?t.couleur:'#f1f5f9',color:actif?'#fff':C.sub,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>
-                            {l}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── HORAIRES PAR AGENT ── */}
-      {activeTab==='agents' && (
-        <>
-          <div style={{fontWeight:800,fontSize:16,color:C.tx}}>
-            Horaires par agent · <span style={{color:C.sub,fontWeight:500,fontSize:13}}>Modification individuelle</span>
-          </div>
-          {loading ? <Loader/> : (
-            <div style={{background:C.card,borderRadius:16,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{background:'#f8fafc'}}>
-                    {['Agent','Modèle','Début','Fin','Tolérance','Jours','Actions'].map(h=>(
-                      <th key={h} style={{padding:'10px 14px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {agents.map((ag,i) => {
-                    const type = types.find(t=>t.id===ag.horaire_type_id);
-                    return (
-                      <AgentHoraireRow key={ag.id} agent={ag} types={types} jours={JOURS_OPTS}
-                        onSave={saveAgentHoraire} toast={toast} idx={i}/>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Modal nouveau/edit modèle */}
-      {(modal==='new'||modal==='edit') && (
-        <Modal title={modal==='new'?'Nouveau modèle horaire':'Modifier le modèle'} subtitle="Horaires" onClose={()=>setModal(null)}>
-          <div style={{display:'flex',flexDirection:'column',gap:13}}>
-            <FormField label="Nom du modèle">
-              <Input value={form.nom} onChange={e=>setForm(p=>({...p,nom:e.target.value}))} placeholder="Ex: Journée standard"/>
-            </FormField>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <FormField label="Heure début *">
-                <input type="time" value={form.heure_debut||'08:00'} onChange={e=>setForm(p=>({...p,heure_debut:e.target.value}))}
-                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1.5px solid ${C.bd}`,fontSize:13,outline:'none',background:'#f8fafc'}}/>
-              </FormField>
-              <FormField label="Heure fin *">
-                <input type="time" value={form.heure_fin||'16:00'} onChange={e=>setForm(p=>({...p,heure_fin:e.target.value}))}
-                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1.5px solid ${C.bd}`,fontSize:13,outline:'none',background:'#f8fafc'}}/>
-              </FormField>
-            </div>
-            <FormField label={`Tolérance retard : ${form.tolerance_retard||15} minutes`}>
-              <input type="range" min="0" max="60" step="5" value={form.tolerance_retard||15}
-                onChange={e=>setForm(p=>({...p,tolerance_retard:parseInt(e.target.value)}))}
-                style={{width:'100%',accentColor:C.pr}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:C.sub,marginTop:3}}>
-                <span>0 (strict)</span><span>15 min</span><span>30 min</span><span>60 min</span>
-              </div>
-            </FormField>
-            <FormField label="Jours de travail">
-              <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:3}}>
-                {JOURS_OPTS.map(({v,l}) => {
-                  const jours = (form.jours_travail||'1,2,3,4,5').split(',');
-                  const sel   = jours.includes(v);
-                  return (
-                    <div key={v} onClick={() => {
-                      const nj = sel ? jours.filter(x=>x!==v) : [...jours,v];
-                      setForm(p=>({...p,jours_travail:nj.join(',')}));
-                    }} style={{width:38,height:38,borderRadius:9,background:sel?C.pr:'#f1f5f9',color:sel?'#fff':C.sub,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,cursor:'pointer',border:`1.5px solid ${sel?C.pr:C.bd}`,transition:'all 0.15s'}}>
-                      {l}
-                    </div>
-                  );
-                })}
-              </div>
-            </FormField>
-            <FormField label="Couleur">
-              <div style={{display:'flex',gap:8,marginTop:3}}>
-                {COLS.map(cl => (
-                  <div key={cl} onClick={()=>setForm(p=>({...p,couleur:cl}))}
-                    style={{width:28,height:28,borderRadius:'50%',background:cl,cursor:'pointer',border:form.couleur===cl?`3px solid ${C.tx}`:'3px solid transparent',transform:form.couleur===cl?'scale(1.2)':'scale(1)',transition:'all 0.15s'}}/>
-                ))}
-              </div>
-            </FormField>
-            <div style={{background:'#f0f4f8',borderRadius:10,padding:'10px 14px',fontSize:12,color:C.sub}}>
-              Durée journalière : <b style={{color:C.tx}}>{durée(form.heure_debut,form.heure_fin)}</b>
-              {form.tolerance_retard > 0 && <> · Tolérance : <b style={{color:C.tx}}>{form.tolerance_retard}min</b></>}
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:4}}>
-              <button onClick={()=>setModal(null)} style={{flex:1,padding:11,background:'#f1f5f9',border:'none',borderRadius:11,fontSize:13,fontWeight:600,cursor:'pointer',color:C.sub}}>Annuler</button>
-              <button onClick={saveType} style={{flex:2,padding:11,background:`linear-gradient(135deg,${C.pr},#2563eb)`,color:'#fff',border:'none',borderRadius:11,fontSize:14,fontWeight:800,cursor:'pointer'}}>
-                {modal==='new'?'Créer le modèle':'Enregistrer'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Modal appliquer à des agents */}
-      {modal==='appliquer' && selType && (
-        <Modal title={`Appliquer : ${selType.nom}`} subtitle="Assigner aux agents" onClose={()=>{setModal(null);setSelAgents([]);}}>
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{background:`${selType.couleur}12`,borderRadius:10,padding:'10px 14px',display:'flex',gap:10,alignItems:'center'}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:selType.couleur}}/>
-              <div style={{fontSize:12,color:C.tx}}>
-                <b>{selType.heure_debut}</b> → <b>{selType.heure_fin}</b> · Tolérance <b>{selType.tolerance_retard}min</b> · <b>{durée(selType.heure_debut,selType.heure_fin)}</b>/j
-              </div>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:C.sub}}>
-              <span>{selAgents.length}/{agents.length} sélectionné{selAgents.length>1?'s':''}</span>
-              <div style={{display:'flex',gap:8}}>
-                <span onClick={()=>setSelAgents(agents.map(a=>a.id))} style={{cursor:'pointer',color:C.pr,fontWeight:700}}>Tout sélectionner</span>
-                <span onClick={()=>setSelAgents([])} style={{cursor:'pointer',color:C.acc,fontWeight:700}}>Tout désélectionner</span>
-              </div>
-            </div>
-            <div style={{maxHeight:280,overflow:'auto',display:'flex',flexDirection:'column',gap:5}}>
-              {agents.map(ag => {
-                const sel = selAgents.includes(ag.id);
-                const current = types.find(t=>t.id===ag.horaire_type_id);
-                return (
-                  <div key={ag.id} onClick={()=>setSelAgents(p=>sel?p.filter(x=>x!==ag.id):[...p,ag.id])}
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,cursor:'pointer',
-                      background:sel?`${selType.couleur}12`:'#f8fafc',border:`1.5px solid ${sel?selType.couleur:C.bd}`}}>
-                    <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?selType.couleur:C.bd}`,background:sel?selType.couleur:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                      {sel&&<Ic.Check/>}
-                    </div>
-                    <Av ag={ag} size={28}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:12}}>{ag.nom} {ag.prenom}</div>
-                      <div style={{fontSize:10,color:C.sub}}>{ag.poste} · Actuel : {current?.nom||`${ag.heure_debut}–${ag.heure_fin}`||'—'}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:4}}>
-              <button onClick={()=>{setModal(null);setSelAgents([]);}} style={{flex:1,padding:11,background:'#f1f5f9',border:'none',borderRadius:11,fontSize:13,fontWeight:600,cursor:'pointer',color:C.sub}}>Annuler</button>
-              <button onClick={appliquerAuxAgents} style={{flex:2,padding:11,background:`linear-gradient(135deg,${selType.couleur},${selType.couleur}cc)`,color:'#fff',border:'none',borderRadius:11,fontSize:14,fontWeight:800,cursor:'pointer',opacity:selAgents.length?1:0.5}}>
-                ✓ Appliquer à {selAgents.length} agent{selAgents.length>1?'s':''}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// Ligne agent horaire éditable inline
-function AgentHoraireRow({agent,types,jours,onSave,toast,idx}) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm]       = useState({...agent});
-
-  const type = types.find(t=>t.id===form.horaire_type_id);
-
-  function applyType(tid) {
-    const t = types.find(x=>x.id===tid);
-    if (!t) { setForm(p=>({...p,horaire_type_id:'',heure_debut:'08:00',heure_fin:'16:00',tolerance_retard:15,jours_travail:'1,2,3,4,5'})); return; }
-    setForm(p=>({...p,horaire_type_id:tid,heure_debut:t.heure_debut,heure_fin:t.heure_fin,tolerance_retard:t.tolerance_retard,jours_travail:t.jours_travail}));
-  }
-
-  function cancel() { setForm({...agent}); setEditing(false); }
-
-  const JOURS_OPTS = [{v:'1',l:'Lu'},{v:'2',l:'Ma'},{v:'3',l:'Me'},{v:'4',l:'Je'},{v:'5',l:'Ve'},{v:'6',l:'Sa'},{v:'0',l:'Di'}];
-
-  return editing ? (
-    <tr style={{background:'#f0f7ff',borderBottom:`1px solid #bfdbfe`}}>
-      <td style={{padding:'10px 14px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}><Av ag={agent} size={26}/><b style={{fontSize:12}}>{agent.nom} {agent.prenom}</b></div>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <select value={form.horaire_type_id||''} onChange={e=>applyType(e.target.value)}
-          style={{padding:'6px 8px',borderRadius:8,border:`1.5px solid #93c5fd`,fontSize:11,background:'#fff',outline:'none',width:130}}>
-          <option value="">Personnalisé</option>
-          {types.map(t=><option key={t.id} value={t.id}>{t.nom}</option>)}
-        </select>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <input type="time" value={form.heure_debut||'08:00'} onChange={e=>setForm(p=>({...p,heure_debut:e.target.value,horaire_type_id:''}))}
-          style={{padding:'5px 8px',borderRadius:7,border:`1.5px solid #93c5fd`,fontSize:12,outline:'none',width:90}}/>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <input type="time" value={form.heure_fin||'16:00'} onChange={e=>setForm(p=>({...p,heure_fin:e.target.value,horaire_type_id:''}))}
-          style={{padding:'5px 8px',borderRadius:7,border:`1.5px solid #93c5fd`,fontSize:12,outline:'none',width:90}}/>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:5}}>
-          <input type="number" min="0" max="60" value={form.tolerance_retard||15} onChange={e=>setForm(p=>({...p,tolerance_retard:parseInt(e.target.value)}))}
-            style={{padding:'5px 6px',borderRadius:7,border:`1.5px solid #93c5fd`,fontSize:12,outline:'none',width:52}}/>
-          <span style={{fontSize:10,color:C.sub}}>min</span>
-        </div>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <div style={{display:'flex',gap:3}}>
-          {JOURS_OPTS.map(({v,l}) => {
-            const jList = (form.jours_travail||'1,2,3,4,5').split(',');
-            const sel   = jList.includes(v);
-            return (
-              <div key={v} onClick={()=>{
-                const nj = sel ? jList.filter(x=>x!==v) : [...jList,v];
-                setForm(p=>({...p,jours_travail:nj.join(',')}));
-              }} style={{width:22,height:22,borderRadius:5,background:sel?'#1a3a5c':'#f1f5f9',color:sel?'#fff':'#94a3b8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:700,cursor:'pointer'}}>
-                {l}
-              </div>
-            );
-          })}
-        </div>
-      </td>
-      <td style={{padding:'10px 14px'}}>
-        <div style={{display:'flex',gap:5}}>
-          <button onClick={()=>{onSave(form);setEditing(false);}} style={{background:'#ecfdf5',color:'#065f46',border:'none',borderRadius:7,padding:'5px 9px',fontSize:10,fontWeight:700,cursor:'pointer'}}>✓ OK</button>
-          <button onClick={cancel} style={{background:'#fef2f2',color:'#dc2626',border:'none',borderRadius:7,padding:'5px 9px',fontSize:10,fontWeight:700,cursor:'pointer'}}>✕</button>
-        </div>
-      </td>
-    </tr>
-  ) : (
-    <tr style={{background:idx%2===0?'#fff':'#f9fafb',borderBottom:`1px solid ${C.bd}`}}>
-      <td style={{padding:'9px 14px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}><Av ag={agent} size={26}/><div><div style={{fontWeight:700,fontSize:12}}>{agent.nom} {agent.prenom}</div><div style={{fontSize:10,color:C.sub}}>{agent.poste}</div></div></div>
-      </td>
-      <td style={{padding:'9px 14px'}}>
-        {type ? <span style={{background:`${type.couleur}15`,color:type.couleur,padding:'2px 9px',borderRadius:20,fontSize:10,fontWeight:700}}>{type.nom}</span>
-               : <span style={{color:C.sub,fontSize:11}}>Personnalisé</span>}
-      </td>
-      <td style={{padding:'9px 14px',fontWeight:700,fontSize:12}}>{agent.heure_debut||'08:00'}</td>
-      <td style={{padding:'9px 14px',fontWeight:700,fontSize:12}}>{agent.heure_fin||'16:00'}</td>
-      <td style={{padding:'9px 14px',fontSize:12,color:C.sub}}>{agent.tolerance_retard||15}min</td>
-      <td style={{padding:'9px 14px'}}>
-        <div style={{display:'flex',gap:3}}>
-          {JOURS_OPTS.map(({v,l}) => {
-            const sel = (agent.jours_travail||'1,2,3,4,5').split(',').includes(v);
-            return <div key={v} style={{width:20,height:20,borderRadius:4,background:sel?C.pr:'#f1f5f9',color:sel?'#fff':'#94a3b8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:700}}>{l}</div>;
-          })}
-        </div>
-      </td>
-      <td style={{padding:'9px 14px'}}>
-        <button onClick={()=>setEditing(true)} style={{background:'#eff6ff',color:'#1d4ed8',border:'none',borderRadius:8,padding:'5px 10px',fontSize:10,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-          <Ic.Edit/>Modifier
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-// ─── RAPPORTS RH COMPLETS ─────────────────────────────────────────────────────
-function Rapports({toast}) {
-  const [data,setData]     = useState([]);
-  const [absences,setAbs]  = useState([]);
-  const [agents,setAgents] = useState([]);
-  const [mois,setMois]     = useState(nowStr().slice(0,7));
-  const [filter,setFilter] = useState('all');
-  const [activeTab,setActiveTab] = useState('synthese'); // synthese | detail | absences
-  const [loading,setLoading] = useState(false);
-
-  useEffect(()=>{ api.agents().then(setAgents).catch(()=>{}); },[]);
-  useEffect(()=>{ load(); },[mois,filter]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [r,ab] = await Promise.all([
-        api.rapport({mois,agent_id:filter!=='all'?filter:undefined}),
-        api.absences({mois}),
-      ]);
-      setData(r); setAbs(ab);
-    } catch(e){} finally{setLoading(false);}
-  }
-
-  const totH     = data.reduce((a,r)=>a+r.totalMin,0);
-  const totSup   = data.reduce((a,r)=>a+r.supMin,0);
-  const totDef   = data.reduce((a,r)=>a+r.defMin,0);
-  const totRet   = data.reduce((a,r)=>a+r.nbRetards,0);
-  const totAbs   = data.reduce((a,r)=>a+r.joursAbsents,0);
-
-  return(
-    <div style={{display:'flex',flexDirection:'column',gap:16}}>
-      {/* Barre de filtres */}
-      <div style={{background:C.card,borderRadius:14,padding:'14px 18px',display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',boxShadow:'0 1px 8px rgba(0,0,0,0.06)'}}>
-        <div>
-          <div style={{fontSize:10,fontWeight:700,color:C.sub,textTransform:'uppercase',marginBottom:4}}>Mois</div>
-          <input type="month" value={mois} onChange={e=>setMois(e.target.value)}
-            style={{padding:'7px 11px',borderRadius:8,border:`1.5px solid ${C.bd}`,fontSize:12,outline:'none'}}/>
-        </div>
-        <div>
-          <div style={{fontSize:10,fontWeight:700,color:C.sub,textTransform:'uppercase',marginBottom:4}}>Agent</div>
-          <select value={filter} onChange={e=>setFilter(e.target.value)}
-            style={{padding:'7px 11px',borderRadius:8,border:`1.5px solid ${C.bd}`,fontSize:12,background:'#fff',outline:'none'}}>
-            <option value="all">Tous les agents</option>
-            {agents.map(a=><option key={a.id} value={a.id}>{a.nom} {a.prenom}</option>)}
-          </select>
-        </div>
-        <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-          <a href={api.exportCSV(mois)} download
-            style={{display:'flex',alignItems:'center',gap:5,padding:'8px 14px',background:'#f1f5f9',color:C.sub,borderRadius:9,fontSize:11,fontWeight:700,textDecoration:'none'}}>
-            <Ic.Dl/>CSV
-          </a>
-          <a href={api.exportExcel(mois)} download
-            style={{display:'flex',alignItems:'center',gap:5,padding:'8px 14px',background:C.acc,color:'#fff',borderRadius:9,fontSize:11,fontWeight:700,textDecoration:'none'}}>
-            <Ic.Dl/>Export Excel
-          </a>
-        </div>
-      </div>
-
-      {/* KPIs */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:11}}>
-        {[
-          {l:'Total heures',    v:fmtH(totH),    c:C.pr},
-          {l:'Heures sup',      v:`+${fmtH(totSup)}`, c:C.ok},
-          {l:'Déficit',         v:fmtH(totDef),  c:C.acc},
-          {l:'Nb retards',      v:totRet,         c:'#d97706'},
-          {l:'Jours absences',  v:`${totAbs}j`,   c:'#dc2626'},
-        ].map(({l,v,c})=>(
-          <div key={l} style={{background:C.card,borderRadius:12,padding:'14px 16px',border:`1px solid ${C.bd}`,boxShadow:'0 1px 5px rgba(0,0,0,0.05)'}}>
-            <div style={{fontSize:22,fontWeight:800,color:c}}>{v}</div>
-            <div style={{fontSize:10,color:C.sub,marginTop:3}}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Onglets */}
-      <div style={{display:'flex',gap:4,background:C.card,borderRadius:10,padding:3,width:'fit-content',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
-        {[{id:'synthese',l:'Synthèse'},{id:'detail',l:'Pointages détaillés'},{id:'absences',l:`Absences (${totAbs})`}].map(({id,l})=>(
-          <button key={id} onClick={()=>setActiveTab(id)}
-            style={{padding:'7px 16px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,
-              background:activeTab===id?C.pr:'transparent',color:activeTab===id?'#fff':C.sub}}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {loading ? <Loader/> : (
-        <>
-          {/* ── SYNTHÈSE ── */}
-          {activeTab==='synthese' && (
-            <div style={{background:C.card,borderRadius:16,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-              <div style={{padding:'12px 20px',fontWeight:700,fontSize:13,borderBottom:`1px solid ${C.bd}`,background:'#f8fafc'}}>
-                Synthèse RH · {mois}
-              </div>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{background:'#f8fafc'}}>
-                    {['Agent','Horaire','Jours Ouv.','Présents','Absents','Nb Retards','Total H','H.Sup','Déficit','Taux %'].map(h=>(
-                      <th key={h} style={{padding:'9px 12px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map(({agent,joursOuvres,joursPresents,joursAbsents,nbRetards,totalHFmt,supHFmt,defHFmt,taux,supH,defH,agent: ag},i)=>(
-                    <tr key={agent.id} style={{borderBottom:`1px solid ${C.bd}`,background:i%2===0?'#fff':'#fafafa'}}>
-                      <td style={{padding:'10px 12px'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <Av ag={agent} size={26}/>
-                          <div>
-                            <div style={{fontWeight:700}}>{agent.nom} {agent.prenom}</div>
-                            <div style={{fontSize:10,color:C.sub}}>{agent.poste}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{padding:'10px 12px',fontSize:11,color:C.sub}}>{agent.heure_debut||'08:00'}–{agent.heure_fin||'16:00'}</td>
-                      <td style={{padding:'10px 12px',color:C.sub}}>{joursOuvres}j</td>
-                      <td style={{padding:'10px 12px',fontWeight:700,color:C.ok}}>{joursPresents}j</td>
-                      <td style={{padding:'10px 12px'}}>
-                        {joursAbsents>0
-                          ? <span style={{background:'#fee2e2',color:'#991b1b',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>{joursAbsents}j</span>
-                          : <span style={{color:C.sub}}>—</span>}
-                      </td>
-                      <td style={{padding:'10px 12px'}}>
-                        {nbRetards>0
-                          ? <span style={{background:'#fef3c7',color:'#92400e',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>{nbRetards}x</span>
-                          : <span style={{color:C.sub}}>—</span>}
-                      </td>
-                      <td style={{padding:'10px 12px',fontWeight:700}}>{totalHFmt}</td>
-                      <td style={{padding:'10px 12px',color:supH>0?C.ok:C.sub,fontWeight:supH>0?700:400}}>
-                        {supH>0?`+${supHFmt}`:'—'}
-                      </td>
-                      <td style={{padding:'10px 12px',color:defH>0?C.acc:C.sub,fontWeight:defH>0?700:400}}>
-                        {defH>0?`-${defHFmt}`:'—'}
-                      </td>
-                      <td style={{padding:'10px 12px'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6}}>
-                          <div style={{width:50,height:5,borderRadius:3,background:'#e2e8f0',overflow:'hidden'}}>
-                            <div style={{width:`${Math.min(100,taux)}%`,height:'100%',background:taux>=90?C.ok:taux>=70?C.wa:C.acc}}/>
-                          </div>
-                          <span style={{fontWeight:700,fontSize:11,color:taux>=90?C.ok:taux>=70?C.wa:C.acc}}>{taux}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* ── DÉTAIL POINTAGES ── */}
-          {activeTab==='detail' && (
-            <div style={{background:C.card,borderRadius:16,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-              <div style={{padding:'12px 20px',fontWeight:700,fontSize:13,borderBottom:`1px solid ${C.bd}`,background:'#f8fafc'}}>
-                Pointages détaillés · {mois}
-              </div>
-              {data.map(r => (
-                <div key={r.agent.id}>
-                  <div style={{padding:'10px 20px',background:'#f0f4f8',borderBottom:`1px solid ${C.bd}`,display:'flex',alignItems:'center',gap:10}}>
-                    <Av ag={r.agent} size={24}/>
-                    <b style={{fontSize:13}}>{r.agent.nom} {r.agent.prenom}</b>
-                    <span style={{fontSize:11,color:C.sub,marginLeft:4}}>{r.agent.heure_debut}–{r.agent.heure_fin} · {r.joursPresents}j présents</span>
-                  </div>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                    <thead><tr style={{background:'#f8fafc'}}>
-                      {['Date','Arrivée','Départ','Durée','Retard','Anticipé','H.Sup','Statut'].map(h=>(
-                        <th key={h} style={{padding:'6px 12px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:9,textTransform:'uppercase'}}>{h}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {r.details.map((d,i) => (
-                        <tr key={d.date} style={{borderBottom:`1px solid ${C.bd}`,background:d.retardMin>0?'#fffbeb':i%2===0?'#fff':'#fafafa'}}>
-                          <td style={{padding:'7px 12px',fontWeight:600}}>{d.date}</td>
-                          <td style={{padding:'7px 12px',color:d.retardMin>0?'#d97706':'',fontWeight:d.retardMin>0?700:400}}>{d.arrivee?.slice(0,5)||'—'}</td>
-                          <td style={{padding:'7px 12px',color:d.depAnticipeMin>5?C.acc:C.sub}}>{d.depart?.slice(0,5)||'—'}</td>
-                          <td style={{padding:'7px 12px',fontWeight:600}}>{fmtH(d.dureeMin)}</td>
-                          <td style={{padding:'7px 12px'}}>{d.retardMin>0?<span style={{background:'#fef3c7',color:'#92400e',padding:'2px 7px',borderRadius:20,fontSize:9,fontWeight:700}}>+{d.retardMin}min</span>:'—'}</td>
-                          <td style={{padding:'7px 12px'}}>{d.depAnticipeMin>5?<span style={{background:'#fee2e2',color:'#991b1b',padding:'2px 7px',borderRadius:20,fontSize:9,fontWeight:700}}>-{d.depAnticipeMin}min</span>:'—'}</td>
-                          <td style={{padding:'7px 12px',color:d.supMin>0?C.ok:C.sub}}>{d.supMin>0?`+${fmtH(d.supMin)}`:'—'}</td>
-                          <td style={{padding:'7px 12px'}}><span style={{background:'#d1fae5',color:'#065f46',padding:'2px 7px',borderRadius:20,fontSize:9,fontWeight:700}}>{d.statut}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ── ABSENCES ── */}
-          {activeTab==='absences' && (
-            <div style={{background:C.card,borderRadius:16,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
-              <div style={{padding:'12px 20px',fontWeight:700,fontSize:13,borderBottom:`1px solid ${C.bd}`,background:'#f8fafc',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                Absences · {mois}
-                <span style={{background:'#fee2e2',color:'#991b1b',padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700}}>{absences.length} absence{absences.length>1?'s':''}</span>
-              </div>
-              {!absences.length && <div style={{padding:30,textAlign:'center',color:C.sub,fontSize:13}}>✅ Aucune absence enregistrée pour ce mois</div>}
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                {absences.length>0 && <thead><tr style={{background:'#f8fafc'}}>
-                  {['Agent','Date','Type','Justifié','Motif','Action'].map(h=>(
-                    <th key={h} style={{padding:'9px 14px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>
-                  ))}
-                </tr></thead>}
-                <tbody>
-                  {absences.map((ab,i) => (
-                    <AbsenceRow key={ab.id} ab={ab} idx={i} onJustif={(id,data)=>api.justifierAbsence(id,data).then(load)} toast={toast}/>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function AbsenceRow({ab,idx,onJustif,toast}) {
-  const [editing,setEditing] = useState(false);
-  const [motif,setMotif]     = useState(ab.motif||'');
-
-  async function save() {
-    try { await onJustif(ab.id,{justifie:true,motif}); setEditing(false); toast('Absence justifiée','ok'); }
-    catch(e) { toast(e.message,'err'); }
-  }
-
-  return(
-    <tr style={{borderBottom:`1px solid ${C.bd}`,background:ab.justifie?'#f0fdf4':idx%2===0?'#fff':'#fafafa'}}>
-      <td style={{padding:'9px 14px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <Av ag={{id:'X',nom:ab.nom,prenom:ab.prenom}} size={26}/>
-          <div><div style={{fontWeight:700,fontSize:12}}>{ab.nom} {ab.prenom}</div><div style={{fontSize:10,color:C.sub}}>{ab.poste}</div></div>
-        </div>
-      </td>
-      <td style={{padding:'9px 14px',fontWeight:600,fontSize:12}}>{ab.date}</td>
-      <td style={{padding:'9px 14px'}}>
-        <span style={{background:'#fee2e2',color:'#991b1b',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>Absence</span>
-      </td>
-      <td style={{padding:'9px 14px'}}>
-        {ab.justifie
-          ? <span style={{background:'#ecfdf5',color:'#065f46',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>✓ Justifiée</span>
-          : <span style={{background:'#fef3c7',color:'#92400e',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>Non justifiée</span>
-        }
-      </td>
-      <td style={{padding:'9px 14px',color:C.sub,fontSize:11,maxWidth:160}}>
-        {editing
-          ? <input value={motif} onChange={e=>setMotif(e.target.value)} placeholder="Motif…" style={{width:'100%',padding:'5px 8px',borderRadius:7,border:`1.5px solid ${C.bd}`,fontSize:11,outline:'none'}}/>
-          : ab.motif || '—'
-        }
-      </td>
-      <td style={{padding:'9px 14px'}}>
-        {!ab.justifie && (
-          editing
-            ? <div style={{display:'flex',gap:5}}>
-                <button onClick={save} style={{background:'#ecfdf5',color:'#065f46',border:'none',borderRadius:7,padding:'4px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>✓ OK</button>
-                <button onClick={()=>setEditing(false)} style={{background:'#f1f5f9',color:C.sub,border:'none',borderRadius:7,padding:'4px 8px',fontSize:10,cursor:'pointer'}}>✕</button>
-              </div>
-            : <button onClick={()=>setEditing(true)} style={{background:'#eff6ff',color:'#1d4ed8',border:'none',borderRadius:7,padding:'4px 10px',fontSize:10,fontWeight:700,cursor:'pointer'}}>Justifier</button>
-        )}
-      </td>
-    </tr>
-  );
-}
-
+// ─── AGENTS ───────────────────────────────────────────────────────────────────
 function Agents({toast}) {
   const [agents,setAgents]=useState([]);
   const [zones,setZones]=useState([]);
@@ -1464,6 +704,86 @@ function Planning({toast}) {
 }
 
 // ─── RAPPORTS ─────────────────────────────────────────────────────────────────
+function Rapports({toast}) {
+  const [data,setData]=useState([]);
+  const [period,setPeriod]=useState('mensuel');
+  const [filter,setFilter]=useState('all');
+  const [mois,setMois]=useState(nowStr().slice(0,7));
+  const [agents,setAgents]=useState([]);
+  const [loading,setLoading]=useState(false);
+
+  useEffect(()=>{ api.agents().then(setAgents).catch(()=>{}); },[]);
+  useEffect(()=>{ loadRapport(); },[period,mois,filter]);
+
+  async function loadRapport() {
+    setLoading(true);
+    try { const r=await api.rapport({period,mois,agent_id:filter!=='all'?filter:undefined}); setData(r); }
+    catch(e){} finally{setLoading(false);}
+  }
+
+  const totH=data.reduce((a,r)=>a+r.totalH,0);
+  const totSup=data.reduce((a,r)=>a+r.supH,0);
+  const totDef=data.reduce((a,r)=>a+r.defH,0);
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:18}}>
+      <div style={{background:C.card,borderRadius:14,padding:'14px 18px',display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',boxShadow:'0 1px 8px rgba(0,0,0,0.06)'}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.sub,textTransform:'uppercase',marginBottom:5}}>Période</div>
+          <div style={{display:'flex',gap:5}}>
+            {['mensuel','annuel'].map(p=><button key={p} onClick={()=>setPeriod(p)} style={{padding:'6px 13px',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',background:period===p?C.pr:'#f1f5f9',color:period===p?'#fff':C.sub,border:'none',textTransform:'capitalize'}}>{p}</button>)}
+          </div>
+        </div>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.sub,textTransform:'uppercase',marginBottom:5}}>Mois</div>
+          <input type="month" value={mois} onChange={e=>setMois(e.target.value)} style={{padding:'7px 11px',borderRadius:8,border:`1.5px solid ${C.bd}`,fontSize:12,outline:'none'}}/>
+        </div>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.sub,textTransform:'uppercase',marginBottom:5}}>Agent</div>
+          <select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:'7px 11px',borderRadius:8,border:`1.5px solid ${C.bd}`,fontSize:12,background:'#fff',outline:'none'}}>
+            <option value="all">Tous les agents</option>
+            {agents.map(a=><option key={a.id} value={a.id}>{a.nom} {a.prenom}</option>)}
+          </select>
+        </div>
+        <a href={api.exportCSV(mois)} download style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,padding:'8px 16px',background:C.acc,color:'#fff',borderRadius:9,fontSize:12,fontWeight:700,textDecoration:'none'}}>
+          <Ic.Dl/>Exporter CSV
+        </a>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:13}}>
+        {[{l:'Total heures',v:fmtH(totH),c:C.pr},{l:'Heures sup',v:`+${fmtH(totSup)}`,c:C.ok},{l:'Déficit total',v:fmtH(totDef),c:C.acc}].map(({l,v,c})=>(
+          <div key={l} style={{background:C.card,borderRadius:13,padding:'16px 18px',border:`1px solid ${C.bd}`,boxShadow:'0 1px 6px rgba(0,0,0,0.05)'}}>
+            <div style={{fontSize:26,fontWeight:800,color:c}}>{v}</div>
+            <div style={{fontSize:11,color:C.sub,marginTop:3}}>{l}</div>
+          </div>
+        ))}
+      </div>
+      {loading?<Loader/>:(
+        <div style={{background:C.card,borderRadius:16,overflow:'hidden',boxShadow:'0 1px 8px rgba(0,0,0,0.07)'}}>
+          <div style={{padding:'14px 20px',fontWeight:700,fontSize:13,borderBottom:`1px solid ${C.bd}`}}>Rapport {period} · {mois}</div>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead><tr style={{background:'#f8fafc'}}>{['Agent','Contrat','Jours','Total h','Heures sup','Déficit','Balance'].map(h=><th key={h} style={{padding:'9px 14px',textAlign:'left',fontWeight:700,color:C.sub,fontSize:10,textTransform:'uppercase'}}>{h}</th>)}</tr></thead>
+            <tbody>
+              {data.map(({agent,joursPresents,totalHFmt,supHFmt,defHFmt,balanceFmt,supH,defH})=>{
+                const pos=balanceFmt&&!balanceFmt.startsWith('-');
+                return(<tr key={agent.id} style={{borderBottom:`1px solid ${C.bd}`}}>
+                  <td style={{padding:'10px 14px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><Av ag={agent} size={26}/><span style={{fontWeight:700}}>{agent.nom} {agent.prenom}</span></div></td>
+                  <td style={{padding:'10px 14px'}}><span style={{background:'#e0f2fe',color:'#0369a1',padding:'2px 7px',borderRadius:20,fontSize:10,fontWeight:700}}>{agent.contrat}</span></td>
+                  <td style={{padding:'10px 14px',color:C.sub}}>{joursPresents}j</td>
+                  <td style={{padding:'10px 14px',fontWeight:700}}>{totalHFmt}</td>
+                  <td style={{padding:'10px 14px',color:supH>0?C.ok:C.sub,fontWeight:supH>0?700:400}}>{supH>0?`+${supHFmt}`:'—'}</td>
+                  <td style={{padding:'10px 14px',color:defH>0?C.acc:C.sub,fontWeight:defH>0?700:400}}>{defH>0?`-${defHFmt}`:'—'}</td>
+                  <td style={{padding:'10px 14px'}}><span style={{background:pos?'#ecfdf5':'#fff7ed',color:pos?C.ok:C.acc,padding:'3px 9px',borderRadius:20,fontSize:10,fontWeight:700}}>{balanceFmt}</span></td>
+                </tr>);
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── APP PRINCIPALE ───────────────────────────────────────────────────────────
 export default function App() {
   const [user,setUser]=useState(null);
   const [tab,setTab]=useState('dashboard');
@@ -1490,7 +810,6 @@ export default function App() {
     {id:'pointage',  label:'Pointage',  Icon:Ic.QR},
     {id:'planning',  label:'Planning',  Icon:Ic.Cal},
     {id:'agents',    label:'Agents',    Icon:Ic.Users},
-    {id:'horaires',  label:'Horaires',  Icon:Ic.Clock},
     {id:'zones',     label:'Zones GPS', Icon:Ic.Map},
     {id:'rapports',  label:'Rapports',  Icon:Ic.Dl},
   ];
@@ -1528,7 +847,6 @@ export default function App() {
         {tab==='pointage'  && <Pointage toast={showToast}/>}
         {tab==='planning'  && <Planning toast={showToast}/>}
         {tab==='agents'    && <Agents   toast={showToast}/>}
-        {tab==='horaires'  && <Horaires  toast={showToast}/>}
         {tab==='zones'     && <Zones    toast={showToast}/>}
         {tab==='rapports'  && <Rapports toast={showToast}/>}
       </div>

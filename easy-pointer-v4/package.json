@@ -1,6 +1,7 @@
 {
   "name": "easy-pointer",
   "version": "1.0.0",
+  "description": "Easy Pointer - Système de gestion du temps de présence avec géofencing",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
@@ -13,8 +14,9 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.0",
-    "sql.js": "^1.10.3",
-    "exceljs": "^4.4.0"
+    "sql.js": "^1.10.3"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
