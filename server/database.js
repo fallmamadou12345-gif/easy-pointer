@@ -54,6 +54,7 @@ function createTables() {
       couleur TEXT DEFAULT '#2563eb',
       actif INTEGER DEFAULT 1,
       created_by TEXT,
+      pin_hash TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -151,7 +152,26 @@ function createTables() {
       UNIQUE(agent_id, date)
     );
   `);
-  console.log('✅ Tables créées/vérifiées');
+
+    CREATE TABLE IF NOT EXISTS demandes_inscription (
+      id TEXT PRIMARY KEY,
+      nom TEXT NOT NULL,
+      prenom TEXT NOT NULL,
+      poste TEXT,
+      tel TEXT,
+      email TEXT,
+      contrat TEXT DEFAULT 'CDI',
+      pin_hash TEXT NOT NULL,
+      message TEXT,
+      statut TEXT NOT NULL DEFAULT 'en_attente',
+      agent_id TEXT,
+      note_admin TEXT,
+      traite_le TEXT,
+      traite_par TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    console.log('✅ Tables créées/vérifiées');
 }
 
 function seedData() {

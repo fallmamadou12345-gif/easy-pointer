@@ -8,7 +8,8 @@ router.get('/public', (req, res) => {
   const agents = db.prepare(`
     SELECT id,nom,prenom,poste,contrat,
            heure_debut,heure_fin,tolerance_retard,jours_travail,
-           tel,email,date_embauche,actif,zone_defaut,horaire_type_id
+           tel,email,date_embauche,actif,zone_defaut,horaire_type_id,
+           CASE WHEN pin_hash IS NOT NULL THEN 1 ELSE 0 END as has_pin
     FROM agents WHERE actif=1 ORDER BY nom
   `).all();
   const result = agents.map(ag => {
@@ -85,3 +86,20 @@ router.delete('/:id', (req, res) => {
 });
 
 module.exports = router;
+
+// Vérifier le PIN d'un agent (public — pour login agent)
+router.post('/verify-pin', (req, res) => {
+  const { agent_id, pin } = req.body;
+  if (!agent_id || !pin) return res.status(400).json({ error: 'agent_id et pin requis' });
+  const ag = db.prepare('SELECT pin_hash FROM agents WHERE id=? AND actif=1').get(agent_id);
+  if (!ag) return res.status(404).json({ error: 'Agent introuvable' });
+  // Si pas de pin_hash → accepter 1234 ou les 4 derniers chiffres de l'ID
+  if (!ag.pin_hash) {
+    const fallback = agent_id.replace(/\D/g,'').slice(-4).padStart(4,'0');
+    const ok = pin === '1234' || pin === fallback;
+    return res.json({ ok });
+  }
+  const bcrypt = require('bcryptjs');
+  const ok = bcrypt.compareSync(pin, ag.pin_hash);
+  res.json({ ok });
+});

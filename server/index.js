@@ -14,8 +14,10 @@ db.ready.then(() => {
   app.use('/api/zones',     require('./routes/zones'));
   app.use('/api/pointages', require('./routes/pointages'));
   app.use('/api/planning',  require('./routes/planning'));
+  app.use('/api/inscription', require('./routes/inscription'));
   app.use('/api/horaires', require('./routes/horaires'));
   app.use('/api/rapports',  require('./routes/rapports'));
+  app.use('/api/inscription', require('./routes/inscription'));
   app.use('/api/horaires',  require('./routes/horaires'));
   app.get('/api/health', (req,res) => res.json({status:'ok',time:new Date().toISOString()}));
 
