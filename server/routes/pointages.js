@@ -6,8 +6,8 @@ const { authMiddleware } = require('../middleware/auth');
 function haversine(la1,lo1,la2,lo2){const R=6371000,r=x=>x*Math.PI/180;const a=Math.sin(r(la2-la1)/2)**2+Math.cos(r(la1))*Math.cos(r(la2))*Math.sin(r(lo2-lo1)/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 
 function calcRetard(agent, arriveeStr) {
-  if (!agent || !arriveeStr || !agent.horaire_debut) return 0;
-  const [ah,am] = agent.horaire_debut.split(':').map(Number);
+  if (!agent || !arriveeStr || !agent.heure_debut) return 0;
+  const [ah,am] = agent.heure_debut.split(':').map(Number);
   const [bh,bm] = arriveeStr.slice(0,5).split(':').map(Number);
   const tol = agent.tolerance_retard || 15;
   const diffMin = (bh*60+bm) - (ah*60+am);
@@ -57,7 +57,7 @@ router.post('/scan', (req, res) => {
     }
   } else if (!existing.depart) {
     // Calculer départ anticipé
-    const [dh,dm] = (agent.horaire_fin||'16:00').split(':').map(Number);
+    const [dh,dm] = (agent.heure_fin||'16:00').split(':').map(Number);
     const [ah,am] = time.slice(0,5).split(':').map(Number);
     const departAnticipeMin = Math.max(0,(dh*60+dm)-(ah*60+am));
     db.prepare('UPDATE pointages SET depart=?,depart_anticipe_minutes=? WHERE agent_id=? AND date=?').run(time,departAnticipeMin,agent_id,today);
@@ -83,8 +83,8 @@ router.get('/', authMiddleware, (req, res) => {
 
 router.put('/:id', authMiddleware, (req, res) => {
   const {arrivee,depart,note} = req.body;
-  const pt = db.prepare('SELECT p.*,a.tolerance_retard,a.horaire_debut FROM pointages p JOIN agents a ON p.agent_id=a.id WHERE p.id=?').get(req.params.id);
-  const retardMin = arrivee ? calcRetard({tolerance_retard:pt?.tolerance_retard,horaire_debut:pt?.horaire_debut},arrivee) : 0;
+  const pt = db.prepare('SELECT p.*,a.tolerance_retard,a.heure_debut FROM pointages p JOIN agents a ON p.agent_id=a.id WHERE p.id=?').get(req.params.id);
+  const retardMin = arrivee ? calcRetard({tolerance_retard:pt?.tolerance_retard,heure_debut:pt?.heure_debut},arrivee) : 0;
   db.prepare('UPDATE pointages SET arrivee=?,depart=?,note=?,statut="manuel",retard_minutes=? WHERE id=?').run(arrivee||null,depart||null,note||null,retardMin,req.params.id);
   res.json({success:true});
 });
